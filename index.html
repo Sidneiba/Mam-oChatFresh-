@@ -1,0 +1,267 @@
+<script>
+    const introScreen = document.getElementById("intro-screen");
+    const cartIcon = document.getElementById("cart-icon");
+    const welcomeContainer = document.getElementById("welcome-container");
+    const loginContainer = document.getElementById("login-container");
+    const registerContainer = document.getElementById("register-container");
+    const chatContainer = document.getElementById("chat-container");
+    const storeContainer = document.getElementById("store-container");
+    const messagesDiv = document.getElementById("messages");
+    const storeMessagesDiv = document.getElementById("store-messages");
+    const productList = document.getElementById("product-list");
+    const cartItems = document.getElementById("cart-items");
+    const chatInput = document.getElementById("chat-input");
+    const storeInput = document.getElementById("store-input");
+
+    let users = JSON.parse(localStorage.getItem("users")) || {
+        clients: {},
+        stores: {
+            "joao": { 
+                password: "123", 
+                storeName: "Mercado João", 
+                zone: "Zona 1", 
+                products: [
+                    { name: "Sabão", price: "2.00" },
+                    { name: "Arroz", price: "25.00" },
+                    { name: "Carne", price: "35.00" },
+                    { name: "Frango", price: "12.00" },
+                    { name: "Óleo", price: "8.00" },
+                    { name: "Sal", price: "2.00" },
+                    { name: "Feijão", price: "7.50" },
+                    { name: "Farinha", price: "6.50" },
+                    { name: "Tomate", price: "5.00" },
+                    { name: "Batata", price: "5.99" }
+                ]
+            },
+            "pedro": { 
+                password: "456", 
+                storeName: "Bar do Pedro", 
+                zone: "Zona 2", 
+                products: [
+                    { name: "Cerveja 1L", price: "3.00" },
+                    { name: "Pinga", price: "5.00" },
+                    { name: "Refrigerante 2L", price: "6.00" },
+                    { name: "Vodka 1L", price: "30.00" },
+                    { name: "Cerveja 2L", price: "2.00" },
+                    { name: "Cerveja 3L", price: "6.00" },
+                    { name: "Cerveja 4L", price: "8.00" },
+                    { name: "Whisky", price: "90.00" },
+                    { name: "Coca-Cola 2L", price: "13.00" },
+                    { name: "Pepsi 2L", price: "11.00" }
+                ]
+            }
+        }
+    };
+    let currentUser = null;
+    let userType = null;
+    let currentStore = null;
+    let cart = [];
+    let awaitingQuantity = null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        introScreen.classList.add("door-open");
+        setTimeout(() => {
+            cartIcon.textContent = "👍";
+        }, 1000);
+        setTimeout(() => {
+            introScreen.style.display = "none";
+            welcomeContainer.classList.remove("hidden");
+        }, 2000);
+    });
+
+    function showLogin() {
+        welcomeContainer.classList.add("hidden");
+        loginContainer.classList.remove("hidden");
+    }
+
+    function showRegister() {
+        welcomeContainer.classList.add("hidden");
+        registerContainer.classList.remove("hidden");
+    }
+
+    function startAsVisitor() {
+        currentUser = "Visitante";
+        userType = "visitor";
+        startChat();
+    }
+
+    function register() {
+        const name = document.getElementById("reg-name").value.trim();
+        const password = document.getElementById("reg-password").value.trim();
+        const address = document.getElementById("reg-address").value.trim();
+        const phone = document.getElementById("reg-phone").value.trim();
+        if (name && password && address && phone) {
+            users.clients[name] = { password, address, phone, history: [] };
+            localStorage.setItem("users", JSON.stringify(users));
+            currentUser = name;
+            userType = "client";
+            startChat();
+        } else {
+            alert("Preencha todos os campos!");
+        }
+    }
+
+    function login() {
+        const name = document.getElementById("login-name").value.trim();
+        const password = document.getElementById("login-password").value.trim();
+        if (users.clients[name] && users.clients[name].password === password) {
+            currentUser = name;
+            userType = "client";
+            startChat();
+        } else if (users.stores[name] && users.stores[name].password === password) {
+            currentUser = name;
+            userType = "store";
+            startChat();
+        } else {
+            alert("Nome ou senha incorretos!");
+        }
+    }
+
+    function startChat() {
+        if (!currentUser || !userType) {
+            console.log("Erro: Usuário ou tipo não definido!");
+            return;
+        }
+        welcomeContainer.classList.add("hidden");
+        loginContainer.classList.add("hidden");
+        registerContainer.classList.add("hidden");
+        chatContainer.classList.remove("hidden");
+        document.getElementById("chat-input-container").style.display = "flex";
+        addMessage(`Bem-vindo, ${currentUser}! Escolha uma loja nas categorias. Digite 'sair' pra voltar.`, "bot");
+    }
+
+    function selectStore(store) {
+        currentStore = store;
+        chatContainer.classList.add("hidden");
+        storeContainer.classList.remove("hidden");
+        document.getElementById("store-input-container").style.display = "flex";
+        addStoreMessage(`Bem-vindo à ${users.stores[store].storeName}! Digite o nome do produto pra adicionar ao carrinho ou 'pagar' pra finalizar.`, "bot");
+        updateProductList();
+    }
+
+    function addMessage(text, sender) {
+        const message = document.createElement("div");
+        message.classList.add(sender);
+        message.textContent = text;
+        messagesDiv.appendChild(message);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addStoreMessage(text, sender) {
+        const message = document.createElement("div");
+        message.classList.add(sender);
+        message.textContent = text;
+        storeMessagesDiv.appendChild(message);
+        storeMessagesDiv.scrollTop = storeMessagesDiv.scrollHeight;
+    }
+
+    function sendMessage() {
+        const text = chatInput.value.trim().toLowerCase();
+        if (text) {
+            addMessage(text, "user");
+            processInput(text);
+            chatInput.value = "";
+        }
+    }
+
+    function sendStoreMessage() {
+        const text = storeInput.value.trim().toLowerCase();
+        if (text) {
+            addStoreMessage(text, "user");
+            processStoreInput(text);
+            storeInput.value = "";
+        }
+    }
+
+    function updateProductList() {
+        productList.innerHTML = "<h4>Produtos</h4>";
+        if (currentStore) {
+            users.stores[currentStore].products.forEach(product => {
+                const div = document.createElement("div");
+                div.textContent = `${product.name} - R$${product.price}`;
+                productList.appendChild(div);
+            });
+        }
+    }
+
+    function processInput(input) {
+        if (input === "sair") {
+            currentUser = null;
+            userType = null;
+            currentStore = null;
+            cart = [];
+            chatContainer.classList.add("hidden");
+            welcomeContainer.classList.remove("hidden");
+        } else {
+            addMessage("Escolha uma loja primeiro!", "bot");
+        }
+    }
+
+    function processStoreInput(input) {
+        if (input === "sair") {
+            currentStore = null;
+            cart = [];
+            storeContainer.classList.add("hidden");
+            chatContainer.classList.remove("hidden");
+            awaitingQuantity = null;
+        } else if (input === "pagar") {
+            if (cart.length) {
+                let total = cart.reduce((sum, p) => sum + parseFloat(p.price) * p.quantity, 0).toFixed(2);
+                let address = userType === "client" ? users.clients[currentUser].address : `${users.stores[currentStore].zone} (Visitante)`;
+                addStoreMessage(`Confirme o endereço de entrega: ${address} (Digite 'sim' ou 'não')`, "bot");
+                awaitingQuantity = "payment";
+            } else {
+                addStoreMessage("Carrinho vazio!", "bot");
+            }
+        } else if (awaitingQuantity === "payment") {
+            if (input === "sim") {
+                let total = cart.reduce((sum, p) => sum + parseFloat(p.price) * p.quantity, 0).toFixed(2);
+                let address = userType === "client" ? users.clients[currentUser].address : `${users.stores[currentStore].zone} (Visitante)`;
+                let time = new Date().getHours();
+                let greeting = time < 12 ? "Bom dia" : time < 18 ? "Boa tarde" : "Boa noite";
+                addStoreMessage(`${greeting}! Compra de R$${total} confirmada! Entrega será feita em ${address}.`, "bot");
+                cart = [];
+                updateCart();
+            } else if (input === "não") {
+                addStoreMessage("Compra cancelada.", "bot");
+            } else {
+                addStoreMessage("Digite 'sim' ou 'não'!", "bot");
+                return;
+            }
+            awaitingQuantity = null;
+        } else {
+            let product = users.stores[currentStore].products.find(p => p.name.toLowerCase() === input);
+            if (product) {
+                awaitingQuantity = product.name;
+                addStoreMessage(`Quantas ${product.name} vai querer?`, "bot");
+            } else if (awaitingQuantity) {
+                let quantity = parseInt(input);
+                if (!isNaN(quantity) && quantity > 0) {
+                    let product = users.stores[currentStore].products.find(p => p.name.toLowerCase() === awaitingQuantity.toLowerCase());
+                    for (let i = 0; i < quantity; i++) {
+                        cart.push({ ...product, quantity: 1 });
+                    }
+                    addStoreMessage(`${quantity} ${product.name} adicionado(s) ao carrinho!`, "bot");
+                    updateCart();
+                    awaitingQuantity = null;
+                } else {
+                    addStoreMessage("Digite um número válido!", "bot");
+                }
+            } else {
+                addStoreMessage("Produto não encontrado! Veja a lista acima.", "bot");
+            }
+        }
+    }
+
+    function updateCart() {
+        cartItems.innerHTML = cart.map(p => `${p.name} - R$${p.price} (x${p.quantity})`).join("<br>");
+    }
+
+    chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    storeInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendStoreMessage();
+    });
+</script>
